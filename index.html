@@ -133,7 +133,7 @@ const DAYS = [{"fecha":"18/08","dia":"Martes","grupos":[1,2,3,4,5,6,7,8,9,null]}
 const STORE = "defensas_ago2026_v2";       // cache local (respaldo)
 const URL_KEY = "defensas_api_url";        // URL del script guardada
 let state = loadCache();
-const API = "https://script.google.com/macros/s/AKfycby8beLilShlaPMiHuFRw4JKsw3Pc8lG3bqfqXePs445ak3WDxZtukv4Eic_6EZiagjd1w/exec";  // URL fija del Google Apps Script
+const API = "https://script.google.com/macros/s/AKfycbyH3c9iUZSAesDQOQ1atAxL7HDm913x7AKqlfHa6ULdGGa28w7s7-UkOTtjAu3igUz1Xg/exec";  // URL fija del Google Apps Script
 
 function loadCache(){ try{ return JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){ return {}; } }
 function saveCache(){ try{ localStorage.setItem(STORE, JSON.stringify(state)); }catch(e){} }
