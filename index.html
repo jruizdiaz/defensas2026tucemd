@@ -176,13 +176,23 @@ async function apiGet(){
 }
 
 async function apiSet(clave,profesor){
-  // Guarda en el servidor; devuelve true si ok
-  const r=await fetch(API,{
+  // Envía el guardado en modo no-cors (el navegador no bloquea, pero
+  // tampoco deja leer la respuesta). Por eso no devolvemos nada acá:
+  // después de este POST hacemos un GET para confirmar el estado real.
+  await fetch(API,{
     method:"POST",
-    headers:{"Content-Type":"text/plain;charset=utf-8"}, // evita preflight CORS
+    mode:"no-cors",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
     body:JSON.stringify({clave:clave,profesor:profesor})
   });
-  return r.json();
+}
+
+// Trae el estado actual sin tocar los LEDs (para confirmar tras guardar)
+async function apiFetchState(){
+  const r=await fetch(API,{method:"GET"});
+  const j=await r.json();
+  if(j && j.ok) return j.registros||{};
+  throw new Error("Respuesta inválida");
 }
 
 /* ---------- Pintado ---------- */
@@ -245,29 +255,34 @@ function renderTable(){
 async function onPick(e){
   const sel=e.target; const k=sel.dataset.k; const nuevo=sel.value; const previo=state[k]||"";
 
-  // Chequeo local rápido del tope (el servidor lo revalida)
+  // Chequeo del tope del lado del cliente. Como en modo no-cors no podemos
+  // leer el mensaje de rechazo del servidor, el control efectivo del límite
+  // vive acá (el servidor igual lo revalida y no guardaría de más).
   if(nuevo && nuevo!==previo && counts()[nuevo]>=MAX){
     sel.value=previo; paintSelect(sel);
     toast(nuevo+" ya tiene "+MAX+" defensas. No se puede asignar otra.","full");
     return;
   }
 
+  // Optimista: aplico el cambio en pantalla ya mismo
+  if(nuevo) state[k]=nuevo; else delete state[k];
+  paintSelect(sel); renderChips(); saveCache();
+
   sel.disabled=true; setLed("busy","Guardando…");
   try{
-    const j=await apiSet(k,nuevo);
-    if(j.ok){
-      state=j.registros||state; saveCache();
-      renderTable(); renderChips(); setLed("on","Conectado");
-      if(nuevo && counts()[nuevo]===MAX) toast(nuevo+" alcanzó el máximo de "+MAX+" defensas.","warn");
-    }else if(j.limite){
-      sel.value=previo; paintSelect(sel); sel.disabled=false; setLed("on","Conectado");
-      toast(j.error||"Límite alcanzado.","full");
-    }else{
-      sel.value=previo; paintSelect(sel); sel.disabled=false; setLed("on","Conectado");
-      toast(j.error||"No se pudo guardar.","full");
-    }
+    await apiSet(k,nuevo);
+    // Doy un instante para que la hoja registre el cambio, y confirmo con un GET
+    await new Promise(res=>setTimeout(res,900));
+    let confirmado=null;
+    try{ confirmado=await apiFetchState(); }catch(_){ /* el GET puede tardar en reflejar */ }
+    if(confirmado){ state=confirmado; saveCache(); }
+    renderTable(); renderChips(); setLed("on","Conectado");
+    if(nuevo && counts()[nuevo]===MAX) toast(nuevo+" alcanzó el máximo de "+MAX+" defensas.","warn");
   }catch(err){
-    sel.value=previo; paintSelect(sel); sel.disabled=false; setLed("off","Sin conexión");
+    // Falló el envío: revierto el cambio optimista
+    if(previo) state[k]=previo; else delete state[k];
+    saveCache(); renderTable(); renderChips();
+    setLed("off","Sin conexión");
     toast("No se pudo guardar. Revisá la conexión e intentá de nuevo.","full");
   }
 }
