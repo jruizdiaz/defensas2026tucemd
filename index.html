@@ -137,7 +137,7 @@ const API = "https://script.google.com/macros/s/AKfycbyH3c9iUZSAesDQOQ1atAxL7HDm
 
 function loadCache(){ try{ return JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){ return {}; } }
 function saveCache(){ try{ localStorage.setItem(STORE, JSON.stringify(state)); }catch(e){} }
-function key(di,fi,p){ return di+"-"+fi+"-"+p; }
+function key(di,fi,p){ return "d"+di+"f"+fi+"p"+p; }  // formato texto puro, sin guiones (evita que Sheets lo lea como fecha)
 
 function counts(){
   const c = Object.fromEntries(PROFESORES.map(p=>[p,0]));
