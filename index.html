@@ -87,10 +87,8 @@
   <hr class="rule">
 
   <div class="syncbar">
-    <span class="status"><span class="led" id="led"></span><span id="sync-text">Sin conectar</span></span>
-    <input id="api-url" type="url" placeholder="Pegá aquí la URL del script de Google (termina en /exec)" autocomplete="off" spellcheck="false">
-    <button class="tool" id="btn-connect">Conectar</button>
-    <span class="hint">Se recuerda en este navegador.</span>
+    <span class="status"><span class="led" id="led"></span><span id="sync-text">Conectando…</span></span>
+    <span class="hint" id="last-sync"></span>
   </div>
 
   <p class="counter-title">Contador por profesor · máximo 7</p>
@@ -135,7 +133,7 @@ const DAYS = [{"fecha":"18/08","dia":"Martes","grupos":[1,2,3,4,5,6,7,8,9,null]}
 const STORE = "defensas_ago2026_v2";       // cache local (respaldo)
 const URL_KEY = "defensas_api_url";        // URL del script guardada
 let state = loadCache();
-let API = localStorage.getItem(URL_KEY) || "";
+const API = "https://script.google.com/macros/s/AKfycbyH3c9iUZSAesDQOQ1atAxL7HDm913x7AKqlfHa6ULdGGa28w7s7-UkOTtjAu3igUz1Xg/exec";  // URL fija del Google Apps Script
 
 function loadCache(){ try{ return JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){ return {}; } }
 function saveCache(){ try{ localStorage.setItem(STORE, JSON.stringify(state)); }catch(e){} }
@@ -163,12 +161,12 @@ function toast(msg,type){
 
 /* ---------- Comunicación con el script ---------- */
 async function apiGet(){
-  if(!API) return;
   setLed("busy","Cargando…");
   try{
     const r=await fetch(API,{method:"GET"});
     const j=await r.json();
-    if(j.ok){ state=j.registros||{}; saveCache(); renderTable(); renderChips(); setLed("on","Conectado"); }
+    if(j.ok){ state=j.registros||{}; saveCache(); renderTable(); renderChips(); setLed("on","Conectado");
+      const ls=document.getElementById("last-sync"); if(ls){ const d=new Date(); ls.textContent="Última actualización "+d.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}); } }
     else{ setLed("off","Error"); toast(j.error||"Error al leer.","full"); }
   }catch(e){
     setLed("off","Sin conexión");
@@ -231,7 +229,7 @@ function renderTable(){
           const k=key(di,fi,p); const val=state[k]||"";
           let opts='<option value="">— profesor —</option>';
           PROFESORES.forEach(pr=>{ opts+='<option value="'+pr+'"'+(pr===val?' selected':'')+'>'+pr+'</option>'; });
-          body+='<select data-k="'+k+'"'+(API?'':' disabled')+'>'+opts+'</select>';
+          body+='<select data-k="'+k+'">'+opts+'</select>';
         }
         body+='</td>';
       }
@@ -246,7 +244,6 @@ function renderTable(){
 /* ---------- Selección ---------- */
 async function onPick(e){
   const sel=e.target; const k=sel.dataset.k; const nuevo=sel.value; const previo=state[k]||"";
-  if(!API){ sel.value=previo; toast("Primero conectá la planilla (pegá la URL y tocá Conectar).","warn"); return; }
 
   // Chequeo local rápido del tope (el servidor lo revalida)
   if(nuevo && nuevo!==previo && counts()[nuevo]>=MAX){
@@ -290,23 +287,15 @@ function exportCSV(){
   URL.revokeObjectURL(a.href); toast("CSV descargado.");
 }
 
-/* ---------- Conexión ---------- */
-function connect(){
-  const val=document.getElementById("api-url").value.trim();
-  if(!/^https:\/\/script\.google\.com\/.+\/exec$/.test(val)){
-    toast("La URL debe ser la del script publicado y terminar en /exec.","full"); return;
-  }
-  API=val; localStorage.setItem(URL_KEY,API); apiGet();
-}
-
 /* ---------- Init ---------- */
 document.getElementById("btn-refresh").addEventListener("click",apiGet);
 document.getElementById("btn-export").addEventListener("click",exportCSV);
-document.getElementById("btn-connect").addEventListener("click",connect);
-document.getElementById("api-url").addEventListener("keydown",e=>{ if(e.key==="Enter") connect(); });
 
-if(API){ document.getElementById("api-url").value=API; renderTable(); renderChips(); apiGet(); }
-else{ setLed("off","Sin conectar — pegá la URL del script"); renderTable(); renderChips(); }
+// Conexión automática al abrir
+renderTable(); renderChips(); apiGet();
+
+// Refresco automático cada 25 s para ver lo que cargaron otros docentes
+setInterval(apiGet, 25000);
 </script>
 </body>
 </html>
